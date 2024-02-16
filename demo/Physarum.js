@@ -24,6 +24,8 @@ class Physarum {
         });
         par('step_n',      1,    0, 20, 1);
         par('dt',          1,    0.3, 1.0);
+        par('gamma',          0.95,    0.85, 0.99);
+
         par('density',     1,    1, 4,  1);
         par('senseFlip',   false);
         par('senseAng',   40,    0, 180  );
@@ -59,8 +61,8 @@ class Physarum {
     }
 
     step(glsl, DPR) {
-        const U=this.U, dt=U.dt;
-        const field = this.field = glsl({dt, Inc:`
+        const U=this.U, dt=U.dt, gamma=U.gamma;
+        const field = this.field = glsl({dt, gamma, Inc:`
         float unpack(float x){return exp((x-1.0)*4.0);}
         float pack(float x){return log(x)/4.0+1.0;}`, FP:`
         vec2 dp = Src_step();
@@ -68,7 +70,7 @@ class Physarum {
         float l=x-dp.x, r=x+dp.x, u=y-dp.y, d=y+dp.y;
         #define S(x,y) unpack(Src(vec2(x,y)).r)
         float v0 = S(x,y);
-        float v1 = 0.95*(v0+S(l,y)+S(r,y)+S(x,u)+S(x,d)+S(l,u)+S(r,u)+S(l,d)+S(r,d))/9.0;
+        float v1 = gamma*(v0+S(l,y)+S(r,y)+S(x,u)+S(x,d)+S(l,u)+S(r,u)+S(l,d)+S(r,d))/10.0;
         FOut.x = pack(clamp(mix(v0, v1, dt),1e-5,1.));
         `}, {story:2, scale:1/DPR, format:'rgba8', filter:'linear', tag:'field'});
 
@@ -76,6 +78,8 @@ class Physarum {
             rotAng:(1-U.senseFlip*2)*U.moveAng/180.0*Math.PI, FP:`
         FOut = Src(I);
         vec2 wldSize = vec2(field_size());
+        
+        // Create new ants
         if (FOut.w == 0.0 || FOut.x>=wldSize.x || FOut.y>=wldSize.y) {
             FOut = vec4(hash(ivec3(I, 123)), 1.0);
             FOut.xyz *= vec3(wldSize, TAU); 
